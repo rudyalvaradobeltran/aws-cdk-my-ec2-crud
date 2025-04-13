@@ -2,7 +2,12 @@ import { Stack, StackProps } from "aws-cdk-lib";
 import {
   Vpc,
   IpAddresses,
-  SubnetType
+  SubnetType,
+  NetworkAcl,
+  AclCidr,
+  AclTraffic,
+  TrafficDirection,
+  Action
 } from "aws-cdk-lib/aws-ec2";
 import { Construct } from "constructs";
 
@@ -29,6 +34,27 @@ export class VpcStack extends Stack {
           subnetType: SubnetType.PRIVATE_WITH_EGRESS,
         },
       ],
+    });
+
+    const nacl = new NetworkAcl(this, 'PublicNACL', {
+      vpc,
+      subnetSelection: { subnetType: SubnetType.PUBLIC },
+    });
+
+    nacl.addEntry('AllowHTTPS', {
+      ruleNumber: 100,
+      cidr: AclCidr.anyIpv4(),
+      traffic: AclTraffic.tcpPort(443),
+      direction: TrafficDirection.INGRESS,
+      ruleAction: Action.ALLOW,
+    });
+
+    nacl.addEntry('AllowAllOutbound', {
+      ruleNumber: 100,
+      cidr: AclCidr.anyIpv4(),
+      traffic: AclTraffic.allTraffic(),
+      direction: TrafficDirection.EGRESS,
+      ruleAction: Action.ALLOW,
     });
   }
 }
