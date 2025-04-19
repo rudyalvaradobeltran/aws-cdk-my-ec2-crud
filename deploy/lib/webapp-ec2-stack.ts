@@ -12,7 +12,8 @@ import {
   AmazonLinuxImage,
   AmazonLinuxGeneration
 } from "aws-cdk-lib/aws-ec2";
-import { ManagedPolicy, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { StringParameter } from "aws-cdk-lib/aws-ssm";
 
 interface WebappEc2StackProps extends StackProps {
   vpc: Vpc;
@@ -37,24 +38,44 @@ export class WebappEc2Stack extends Stack {
       subnetGroupName: 'PublicSubnet',
     }).subnets[0];
 
-    const ssmRole = new Role(this, 'SSMRole', {
+    const ec2Role = new Role(this, 'EC2Role', {
       assumedBy: new ServicePrincipal('ec2.amazonaws.com'),
-      managedPolicies: [
-        ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore'),
-      ],
     });
+    
+    ec2Role.addManagedPolicy(
+      ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore')
+    );
+    
+    ec2Role.addToPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          's3:GetObject',
+          's3:ListBucket',
+        ],
+        resources: [
+          'arn:aws:s3:::temp-webapp-deployment-*',
+          'arn:aws:s3:::temp-webapp-deployment-*/*',
+        ],
+      })
+    );    
 
     const machineImage = new AmazonLinuxImage({
       generation: AmazonLinuxGeneration.AMAZON_LINUX_2023,
     });
 
-    new Instance(this, "WebappInstance", {
+    const instance = new Instance(this, "WebappInstance", {
       vpc,
       instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
       machineImage: machineImage,
       securityGroup,
       vpcSubnets: { subnets: [publicSubnet] },
-      role: ssmRole
+      role: ec2Role
+    });
+
+    new StringParameter(this, 'WebappInstanceId', {
+      parameterName: '/webapp/webapp-ec2-instance-id',
+      stringValue: instance.instanceId,
     });
   }
 }

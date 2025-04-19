@@ -1,0 +1,79 @@
+name: DEPLOY
+
+on:
+  push:
+    branches: 
+      - main
+
+jobs:
+  deploy:
+    name: deploy
+    environment:
+      name: main
+    runs-on: ubuntu-latest
+    env:
+      CDK_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+      CDK_DEFAULT_ACCOUNT: ${{ vars.CDK_DEFAULT_ACCOUNT }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_DEFAULT_REGION }}
+    
+      - name: Install CDK dependencies
+        run: |
+          cd deploy && npm install
+
+      - name: CDK Deploy
+        run: |
+          cd deploy && npm run cdk deploy -- --all --require-approval never
+
+      - name: Deploy React app to EC2
+        run: |
+          # Get instance ID from SSM Parameter 
+          INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/webapp-ec2-instance-id" --query "Parameter.Value" --output text)
+          
+          # Build the React app
+          cd src/webapp
+          npm ci
+          npm run build
+
+          # Create a deployment package
+          cd build
+          zip -r ../../../webapp.zip .
+          
+          # Upload directly to the EC2 instance using SSM
+          aws ssm send-command \
+            --instance-ids $INSTANCE_ID \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=[
+              "mkdir -p /tmp/webapp",
+              "mkdir -p /var/www/html",
+              "systemctl start httpd || true",
+              "systemctl enable httpd || true"
+            ]
+          
+          # Use AWS S3 as an intermediary for the file transfer
+          aws s3 mb s3://temp-webapp-deployment-$INSTANCE_ID --region ${{ vars.AWS_DEFAULT_REGION }} || true
+          aws s3 cp ../../../webapp.zip s3://temp-webapp-deployment-$INSTANCE_ID/webapp.zip
+          
+          # Use SSM to download and deploy the app
+          aws ssm send-command \
+            --instance-ids $INSTANCE_ID \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands=[
+              "aws s3 cp s3://temp-webapp-deployment-$INSTANCE_ID/webapp.zip /tmp/webapp.zip",
+              "cd /tmp && unzip -o webapp.zip -d webapp",
+              "cp -r /tmp/webapp/* /var/www/html/",
+              "systemctl restart httpd || echo 'Failed to restart httpd'"
+            ]
