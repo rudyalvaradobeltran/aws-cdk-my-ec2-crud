@@ -106,4 +106,8 @@ jobs:
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
-              "aws s3 cp s3://$BUCKET
+              "aws s3 cp s3://$BUCKET_NAME/webapp.zip /tmp/webapp.zip",
+              "cd /tmp && unzip -o webapp.zip -d webapp",
+              "cp -r /tmp/webapp/* /var/www/html/",
+              "systemctl restart httpd || echo 'Failed to restart httpd'"
+            ]
