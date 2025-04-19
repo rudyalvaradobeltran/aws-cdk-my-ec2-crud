@@ -69,23 +69,8 @@ jobs:
           
           # Create a deployment package - check for static export first
           echo "Creating deployment package..."
-          if [ -d "out" ]; then
-            # Static export case
-            cd out
-            echo "Using out directory (static export): $(pwd)"
-            zip -r ../../../webapp.zip .
-          elif [ -d ".next" ]; then
-            # Server-side rendering case - need to include more files
-            echo "Using .next directory (SSR): $(pwd)"
-            # For SSR, we need the .next folder, package.json, and node_modules
-            zip -r ../../../webapp.zip .next package.json package-lock.json next.config.js public
-            # For a production deployment, you might want to do a npm ci --production 
-            # and include node_modules, but that makes the zip very large
-          else
-            echo "ERROR: Neither .next nor out directory found. Check if this is a Next.js app and the build succeeded."
-            exit 1
-          fi
-          
+          zip -r ../../../webapp.zip .next package.json package-lock.json next.config.js public
+
           echo "Zip file created at ../../../webapp.zip"
           
           # Create a unique bucket name using instance ID
@@ -100,16 +85,24 @@ jobs:
           cd ../../../  # Return to root directory
           aws s3 cp webapp.zip s3://$BUCKET_NAME/webapp.zip
           
-          # Use SSM to download and deploy the app
+          # Prepare and deploy the app using SSM (SSR + PM2)
           echo "Preparing EC2 instance via SSM..."
           aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["mkdir -p /tmp/webapp", "mkdir -p /var/www/html", "systemctl start httpd || true", "systemctl enable httpd || true"]}'
-          
-          # Use SSM to download and deploy the app
-          echo "Deploying app to EC2 via SSM..."
-          aws ssm send-command \
-            --instance-ids $INSTANCE_ID \
-            --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["aws s3 cp s3://'"$BUCKET_NAME"'/webapp.zip /tmp/webapp.zip", "cd /tmp && unzip -o webapp.zip -d webapp", "cp -r /tmp/webapp/* /var/www/html/", "systemctl restart httpd || echo '"'"'Failed to restart httpd'"'"'"]}'
+            --parameters '{"commands":[
+              "mkdir -p /tmp/webapp",
+              "aws s3 cp s3://'"$BUCKET_NAME"'/webapp.zip /tmp/webapp.zip",
+              "cd /tmp && unzip -o webapp.zip -d webapp",
+              "rm -rf /home/ec2-user/webapp && mv /tmp/webapp /home/ec2-user/webapp",
+              "cd /home/ec2-user/webapp",
+              "source /home/ec2-user/.nvm/nvm.sh || true",
+              "export NVM_DIR=\"$HOME/.nvm\" && source \"$NVM_DIR/nvm.sh\" || true",
+              "which node || curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && source ~/.nvm/nvm.sh && nvm install 18 && nvm use 18",
+              "npm install --omit=dev",
+              "npm install -g pm2",
+              "pm2 delete nextjs-app || true",
+              "pm2 start npm --name nextjs-app -- start",
+              "pm2 save",
+              "pm2 startup | grep sudo | bash"
+            ]}'
