@@ -1,29 +1,32 @@
 #!/bin/bash
 
-set -e
+set -euxo pipefail
 
 cd /home/ec2-user/webapp || exit 1
 
+# Install NVM if not already installed
 export NVM_DIR="$HOME/.nvm"
-source "$NVM_DIR/nvm.sh" || true
-
-if ! command -v node >/dev/null; then
-  echo "Installing Node.js..."
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+  echo "Installing NVM..."
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-  export NVM_DIR="$HOME/.nvm"
-  source "$NVM_DIR/nvm.sh"
-  nvm install 18
-  nvm use 18
 fi
+source "$NVM_DIR/nvm.sh"
 
-echo "Installing dependencies..."
+# Install Node.js
+nvm install 18
+nvm use 18
+
+# Make sure ec2-user owns all files
+chown -R ec2-user:ec2-user /home/ec2-user/webapp
+
+# Install app dependencies
 npm install --omit=dev
 
-echo "Installing pm2..."
+# Install PM2 globally
 npm install -g pm2
 
-echo "Starting app with pm2..."
-pm2 delete webapp || true
-pm2 start npm --name webapp -- start
+# Start app with PM2
+pm2 delete nextjs-app || true
+pm2 start npm --name nextjs-app -- start
 pm2 save
 pm2 startup | grep sudo | bash
