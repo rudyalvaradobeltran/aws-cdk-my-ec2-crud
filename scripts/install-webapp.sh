@@ -17,7 +17,7 @@ nvm install 18
 nvm use 18
 
 # Make sure ec2-user owns all files
-chown -R ec2-user:ec2-user /home/ec2-user/webapp
+sudo chown -R ec2-user:ec2-user /home/ec2-user/webapp
 
 # Install app dependencies
 npm install --omit=dev
