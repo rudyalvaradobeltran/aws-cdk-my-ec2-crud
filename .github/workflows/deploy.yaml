@@ -87,44 +87,33 @@ jobs:
           
           # Prepare and deploy the app using SSM (SSR + PM2)
           echo "Preparing EC2 instance via SSM..."
+
           aws ssm send-command \
-            --instance-ids $INSTANCE_ID \
+            --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy Next.js SSR app using PM2 as ec2-user" \
-            --parameters '{
-              "commands": [
-                "mkdir -p /tmp/webapp",
-                "aws s3 cp s3://'"$BUCKET_NAME"'/webapp.zip /tmp/webapp.zip",
-                "cd /tmp && unzip -o webapp.zip -d webapp",
-                "rm -rf /home/ec2-user/webapp && mv /tmp/webapp /home/ec2-user/webapp",
-                "sudo -u ec2-user bash -lc '\''
-
-                  set -e
-
-                  echo Installing Node.js if needed...
-                  if ! command -v node > /dev/null; then
-                    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-                    export NVM_DIR=\"$HOME/.nvm\"
-                    source \"$NVM_DIR/nvm.sh\"
-                    nvm install 18
-                    nvm use 18
-                  fi
-
-                  echo Navigating to app directory...
-                  cd /home/ec2-user/webapp
-
-                  echo Installing dependencies...
-                  npm install --omit=dev
-
-                  echo Installing PM2 globally...
-                  npm install -g pm2
-
-                  echo Restarting app with PM2...
-                  pm2 delete nextjs-app || true
-                  pm2 start npm --name nextjs-app -- start
-                  pm2 save
-                  pm2 startup | grep sudo | bash
-
-                '\''
-              ]
-            }'
+            --parameters commands="[
+              \"mkdir -p /tmp/webapp\",
+              \"aws s3 cp s3://$BUCKET_NAME/webapp.zip /tmp/webapp.zip\",
+              \"cd /tmp && unzip -o webapp.zip -d webapp\",
+              \"rm -rf /home/ec2-user/webapp && mv /tmp/webapp /home/ec2-user/webapp\",
+              \"sudo -u ec2-user bash -lc 'set -e
+                && echo Installing Node.js if needed...
+                && if ! command -v node > /dev/null; then
+                  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+                  && export NVM_DIR=\\\"\\$HOME/.nvm\\\"
+                  && source \\\"\\$NVM_DIR/nvm.sh\\\"
+                  && nvm install 18
+                  && nvm use 18
+                ; fi
+                && cd /home/ec2-user/webapp
+                && echo Installing dependencies...
+                && npm install --omit=dev
+                && echo Installing PM2 globally...
+                && npm install -g pm2
+                && echo Restarting app with PM2...
+                && pm2 delete webapp || true
+                && pm2 start npm --name webapp -- start
+                && pm2 save
+                && pm2 startup | grep sudo | bash'\"
+            ]"
