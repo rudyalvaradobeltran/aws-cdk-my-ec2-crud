@@ -63,6 +63,8 @@ jobs:
             --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy Next.js SSR app using PM2" \
+            --output-s3-bucket-name webapp-install-logs \
+            --output-s3-key-prefix logs/webapp-deploy
             --parameters commands="[ 
               \"aws s3 cp s3://${{ env.BUCKET_NAME }}/webapp.zip /tmp/webapp.zip\",
               \"cd /tmp && unzip -o webapp.zip -d webapp\",
