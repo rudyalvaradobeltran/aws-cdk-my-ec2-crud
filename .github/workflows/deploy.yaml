@@ -38,13 +38,13 @@ jobs:
         run: |
           cd deploy && npm run cdk deploy -- --all --require-approval never
 
-      - name: Deploy React app to EC2
+      - name: Deploy Next.js app to EC2
         run: |
           # Get instance ID from SSM Parameter 
           INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/webapp-ec2-instance-id" --query "Parameter.Value" --output text)
           echo "Retrieved instance ID: $INSTANCE_ID"
           
-          # Build the React app
+          # Build the Next.js app
           echo "Current directory: $(pwd)"
           cd src/webapp
           echo "Changed to src/webapp directory: $(pwd)"
@@ -56,40 +56,37 @@ jobs:
           npm ci
           
           # Build the app
-          echo "Building React app..."
+          echo "Building Next.js app..."
           npm run build
           
           echo "Build completed. Directory contents:"
           ls -la
           
-          echo "Build directory contents:"
-          ls -la build || echo "Build directory not found!"
+          # Check for .next or out directory
+          echo "Build output directories:"
+          ls -la .next || echo ".next directory not found"
+          ls -la out || echo "out directory not found"
           
-          # Create a deployment package
+          # Create a deployment package - check for static export first
           echo "Creating deployment package..."
-          # Only cd into build if it exists
-          if [ -d "build" ]; then
-            cd build
-            echo "In build directory: $(pwd)"
+          if [ -d "out" ]; then
+            # Static export case
+            cd out
+            echo "Using out directory (static export): $(pwd)"
             zip -r ../../../webapp.zip .
-            echo "Zip file created at ../../../webapp.zip"
+          elif [ -d ".next" ]; then
+            # Server-side rendering case - need to include more files
+            echo "Using .next directory (SSR): $(pwd)"
+            # For SSR, we need the .next folder, package.json, and node_modules
+            zip -r ../../../webapp.zip .next package.json package-lock.json next.config.js public
+            # For a production deployment, you might want to do a npm ci --production 
+            # and include node_modules, but that makes the zip very large
           else
-            echo "ERROR: build directory not found. Check the build output above for errors."
+            echo "ERROR: Neither .next nor out directory found. Check if this is a Next.js app and the build succeeded."
             exit 1
           fi
           
-          # Rest of your deployment steps...
-          # Upload directly to the EC2 instance using SSM
-          echo "Preparing EC2 instance via SSM..."
-          aws ssm send-command \
-            --instance-ids $INSTANCE_ID \
-            --document-name "AWS-RunShellScript" \
-            --parameters commands=[
-              "mkdir -p /tmp/webapp",
-              "mkdir -p /var/www/html",
-              "systemctl start httpd || true",
-              "systemctl enable httpd || true"
-            ]
+          echo "Zip file created at ../../../webapp.zip"
           
           # Create a unique bucket name using instance ID
           BUCKET_NAME="temp-webapp-deployment-$(echo $INSTANCE_ID | tr -d '-')"
@@ -109,10 +106,4 @@ jobs:
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
-              "aws s3 cp s3://$BUCKET_NAME/webapp.zip /tmp/webapp.zip",
-              "cd /tmp && unzip -o webapp.zip -d webapp",
-              "cp -r /tmp/webapp/* /var/www/html/",
-              "systemctl restart httpd || echo 'Failed to restart httpd'"
-            ]
-          
-          echo "Deployment complete!"
+              "aws s3 cp s3://$BUCKET
