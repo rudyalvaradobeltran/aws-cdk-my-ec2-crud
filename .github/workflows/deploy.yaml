@@ -101,13 +101,15 @@ jobs:
           aws s3 cp webapp.zip s3://$BUCKET_NAME/webapp.zip
           
           # Use SSM to download and deploy the app
+          echo "Preparing EC2 instance via SSM..."
+          aws ssm send-command \
+            --instance-ids $INSTANCE_ID \
+            --document-name "AWS-RunShellScript" \
+            --parameters '{"commands":["mkdir -p /tmp/webapp", "mkdir -p /var/www/html", "systemctl start httpd || true", "systemctl enable httpd || true"]}'
+          
+          # Use SSM to download and deploy the app
           echo "Deploying app to EC2 via SSM..."
           aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
-            --parameters commands=[
-              "aws s3 cp s3://$BUCKET_NAME/webapp.zip /tmp/webapp.zip",
-              "cd /tmp && unzip -o webapp.zip -d webapp",
-              "cp -r /tmp/webapp/* /var/www/html/",
-              "systemctl restart httpd || echo 'Failed to restart httpd'"
-            ]
+            --parameters '{"commands":["aws s3 cp s3://'"$BUCKET_NAME"'/webapp.zip /tmp/webapp.zip", "cd /tmp && unzip -o webapp.zip -d webapp", "cp -r /tmp/webapp/* /var/www/html/", "systemctl restart httpd || echo '"'"'Failed to restart httpd'"'"'"]}'
