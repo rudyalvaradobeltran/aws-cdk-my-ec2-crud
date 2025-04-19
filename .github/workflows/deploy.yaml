@@ -42,17 +42,45 @@ jobs:
         run: |
           # Get instance ID from SSM Parameter 
           INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/webapp-ec2-instance-id" --query "Parameter.Value" --output text)
+          echo "Retrieved instance ID: $INSTANCE_ID"
           
           # Build the React app
+          echo "Current directory: $(pwd)"
           cd src/webapp
-          npm ci
-          npm run build
-
-          # Create a deployment package
-          cd build
-          zip -r ../../../webapp.zip .
+          echo "Changed to src/webapp directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
           
+          # Install dependencies
+          echo "Installing dependencies..."
+          npm ci
+          
+          # Build the app
+          echo "Building React app..."
+          npm run build
+          
+          echo "Build completed. Directory contents:"
+          ls -la
+          
+          echo "Build directory contents:"
+          ls -la build || echo "Build directory not found!"
+          
+          # Create a deployment package
+          echo "Creating deployment package..."
+          # Only cd into build if it exists
+          if [ -d "build" ]; then
+            cd build
+            echo "In build directory: $(pwd)"
+            zip -r ../../../webapp.zip .
+            echo "Zip file created at ../../../webapp.zip"
+          else
+            echo "ERROR: build directory not found. Check the build output above for errors."
+            exit 1
+          fi
+          
+          # Rest of your deployment steps...
           # Upload directly to the EC2 instance using SSM
+          echo "Preparing EC2 instance via SSM..."
           aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
@@ -63,17 +91,28 @@ jobs:
               "systemctl enable httpd || true"
             ]
           
+          # Create a unique bucket name using instance ID
+          BUCKET_NAME="temp-webapp-deployment-$(echo $INSTANCE_ID | tr -d '-')"
+          echo "Using S3 bucket: $BUCKET_NAME"
+          
           # Use AWS S3 as an intermediary for the file transfer
-          aws s3 mb s3://temp-webapp-deployment-$INSTANCE_ID --region ${{ vars.AWS_DEFAULT_REGION }} || true
-          aws s3 cp ../../../webapp.zip s3://temp-webapp-deployment-$INSTANCE_ID/webapp.zip
+          echo "Creating/using S3 bucket..."
+          aws s3 mb s3://$BUCKET_NAME --region ${{ vars.AWS_DEFAULT_REGION }} || true
+          
+          echo "Uploading webapp.zip to S3..."
+          cd ../../../  # Return to root directory
+          aws s3 cp webapp.zip s3://$BUCKET_NAME/webapp.zip
           
           # Use SSM to download and deploy the app
+          echo "Deploying app to EC2 via SSM..."
           aws ssm send-command \
             --instance-ids $INSTANCE_ID \
             --document-name "AWS-RunShellScript" \
             --parameters commands=[
-              "aws s3 cp s3://temp-webapp-deployment-$INSTANCE_ID/webapp.zip /tmp/webapp.zip",
+              "aws s3 cp s3://$BUCKET_NAME/webapp.zip /tmp/webapp.zip",
               "cd /tmp && unzip -o webapp.zip -d webapp",
               "cp -r /tmp/webapp/* /var/www/html/",
               "systemctl restart httpd || echo 'Failed to restart httpd'"
             ]
+          
+          echo "Deployment complete!"
