@@ -49,6 +49,14 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
 
+    nacl.addEntry('AllowHTTPS', {
+      ruleNumber: 100,
+      cidr: AclCidr.anyIpv4(),
+      traffic: AclTraffic.tcpPort(443),
+      direction: TrafficDirection.INGRESS,
+      ruleAction: Action.ALLOW,
+    });
+
     nacl.addEntry('AllowEphemeralInbound', {
       ruleNumber: 110,
       cidr: AclCidr.anyIpv4(),
@@ -61,6 +69,14 @@ export class VpcStack extends Stack {
       ruleNumber: 100,
       cidr: AclCidr.anyIpv4(),
       traffic: AclTraffic.tcpPort(80),
+      direction: TrafficDirection.EGRESS,
+      ruleAction: Action.ALLOW,
+    });
+
+    nacl.addEntry('AllowOutboundHTTPS', {
+      ruleNumber: 100,
+      cidr: AclCidr.anyIpv4(),
+      traffic: AclTraffic.tcpPort(443),
       direction: TrafficDirection.EGRESS,
       ruleAction: Action.ALLOW,
     });

@@ -32,6 +32,7 @@ export class WebappEc2Stack extends Stack {
     });
 
     securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(80), "Allow HTTP");
+    securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(443), "Allow HTTPS");
     securityGroup.addEgressRule(Peer.anyIpv4(), Port.allTraffic(), "Allow All Egress");
 
     const publicSubnet = vpc.selectSubnets({
