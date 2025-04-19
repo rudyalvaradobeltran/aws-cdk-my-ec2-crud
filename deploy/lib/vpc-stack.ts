@@ -41,10 +41,10 @@ export class VpcStack extends Stack {
       subnetSelection: { subnetType: SubnetType.PUBLIC },
     });
 
-    nacl.addEntry('AllowHTTPS', {
+    nacl.addEntry('AllowHTTP', {
       ruleNumber: 100,
       cidr: AclCidr.anyIpv4(),
-      traffic: AclTraffic.tcpPort(443),
+      traffic: AclTraffic.tcpPort(80),
       direction: TrafficDirection.INGRESS,
       ruleAction: Action.ALLOW,
     });
@@ -57,10 +57,10 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
 
-    nacl.addEntry('AllowOutboundHTTPS', {
+    nacl.addEntry('AllowOutboundHTTP', {
       ruleNumber: 100,
       cidr: AclCidr.anyIpv4(),
-      traffic: AclTraffic.tcpPort(443),
+      traffic: AclTraffic.tcpPort(80),
       direction: TrafficDirection.EGRESS,
       ruleAction: Action.ALLOW,
     });

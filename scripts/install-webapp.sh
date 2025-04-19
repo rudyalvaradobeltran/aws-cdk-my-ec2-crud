@@ -30,3 +30,30 @@ pm2 delete nextjs-app || true
 pm2 start npm --name nextjs-app -- start
 pm2 save
 pm2 startup | grep sudo | bash
+
+# Install NGINX
+sudo yum install nginx -y
+sudo nano /etc/nginx/conf.d/nextjs.conf
+
+# Set up reverse proxy to port 3000
+sudo tee /etc/nginx/conf.d/nextjs.conf > /dev/null <<EOF
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
+EOF
+
+# Remove default config if it exists
+sudo rm -f /etc/nginx/conf.d/default.conf || true
+
+# Start and enable Nginx
+sudo systemctl enable nginx
+sudo systemctl restart nginx
