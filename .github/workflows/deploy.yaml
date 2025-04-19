@@ -38,82 +38,36 @@ jobs:
         run: |
           cd deploy && npm run cdk deploy -- --all --require-approval never
 
-      - name: Deploy Next.js app to EC2
+      - name: Build and zip Next.js app
         run: |
-          # Get instance ID from SSM Parameter 
           INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/webapp-ec2-instance-id" --query "Parameter.Value" --output text)
           echo "Retrieved instance ID: $INSTANCE_ID"
-          
-          # Build the Next.js app
-          echo "Current directory: $(pwd)"
+
           cd src/webapp
-          echo "Changed to src/webapp directory: $(pwd)"
-          echo "Directory contents:"
-          ls -la
-          
-          # Install dependencies
-          echo "Installing dependencies..."
           npm ci
-          
-          # Build the app
-          echo "Building Next.js app..."
           npm run build
-          
-          echo "Build completed. Directory contents:"
-          ls -la
-          
-          # Check for .next or out directory
-          echo "Build output directories:"
-          ls -la .next || echo ".next directory not found"
-          ls -la out || echo "out directory not found"
-          
-          # Create a deployment package - check for static export first
-          echo "Creating deployment package..."
           zip -r ../../../webapp.zip .next package.json package-lock.json next.config.js public
 
-          echo "Zip file created at ../../../webapp.zip"
-          
-          # Create a unique bucket name using instance ID
+      - name: Upload zip and script to S3
+        run: |
+          cd ../../../
           BUCKET_NAME="temp-webapp-deployment-$(echo $INSTANCE_ID | tr -d '-')"
-          echo "Using S3 bucket: $BUCKET_NAME"
-          
-          # Use AWS S3 as an intermediary for the file transfer
-          echo "Creating/using S3 bucket..."
           aws s3 mb s3://$BUCKET_NAME --region ${{ vars.AWS_DEFAULT_REGION }} || true
-          
-          echo "Uploading webapp.zip to S3..."
-          cd ../../../  # Return to root directory
           aws s3 cp webapp.zip s3://$BUCKET_NAME/webapp.zip
-          
-          # Prepare and deploy the app using SSM (SSR + PM2)
-          echo "Preparing EC2 instance via SSM..."
+          aws s3 cp scripts/install-webapp.sh s3://$BUCKET_NAME/install-webapp.sh
 
+      - name: Deploy app on EC2 via SSM
+        run: |
           aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy Next.js SSR app using PM2 as ec2-user" \
+            --comment "Deploy Next.js SSR app using PM2" \
             --parameters commands="[
-              \"mkdir -p /tmp/webapp\",
               \"aws s3 cp s3://$BUCKET_NAME/webapp.zip /tmp/webapp.zip\",
               \"cd /tmp && unzip -o webapp.zip -d webapp\",
               \"rm -rf /home/ec2-user/webapp && mv /tmp/webapp /home/ec2-user/webapp\",
-              \"sudo -u ec2-user bash -lc 'set -e
-                && echo Installing Node.js if needed...
-                && if ! command -v node > /dev/null; then
-                  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-                  && export NVM_DIR=\\\"\\$HOME/.nvm\\\"
-                  && source \\\"\\$NVM_DIR/nvm.sh\\\"
-                  && nvm install 18
-                  && nvm use 18
-                ; fi
-                && cd /home/ec2-user/webapp
-                && echo Installing dependencies...
-                && npm install --omit=dev
-                && echo Installing PM2 globally...
-                && npm install -g pm2
-                && echo Restarting app with PM2...
-                && pm2 delete webapp || true
-                && pm2 start npm --name webapp -- start
-                && pm2 save
-                && pm2 startup | grep sudo | bash'\"
+              \"aws s3 cp s3://$BUCKET_NAME/install-webapp.sh /home/ec2-user/install-webapp.sh\",
+              \"chown ec2-user:ec2-user /home/ec2-user/install-webapp.sh\",
+              \"chmod +x /home/ec2-user/install-webapp.sh\",
+              \"sudo -u ec2-user bash /home/ec2-user/install-webapp.sh\"
             ]"
