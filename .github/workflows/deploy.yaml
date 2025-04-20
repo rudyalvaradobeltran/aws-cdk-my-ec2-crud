@@ -59,12 +59,13 @@ jobs:
 
       - name: Deploy app on EC2 via SSM
         run: |
+          aws s3 mb s3://webapp-install-logs --region ${{ vars.AWS_DEFAULT_REGION }} || true
           aws ssm send-command \
             --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy Next.js SSR app using PM2" \
             --output-s3-bucket-name webapp-install-logs \
-            --output-s3-key-prefix logs/webapp-deploy
+            --output-s3-key-prefix logs/webapp-deploy \
             --parameters commands="[ 
               \"aws s3 cp s3://${{ env.BUCKET_NAME }}/webapp.zip /tmp/webapp.zip\",
               \"cd /tmp && unzip -o webapp.zip -d webapp\",
