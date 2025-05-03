@@ -55,8 +55,8 @@ export class WebappEc2Stack extends Stack {
           's3:ListBucket',
         ],
         resources: [
-          'arn:aws:s3:::temp-webapp-deployment-*',
-          'arn:aws:s3:::temp-webapp-deployment-*/*',
+          'arn:aws:s3:::temp-webapp-deployment',
+          'arn:aws:s3:::temp-webapp-deployment/*',
         ],
       })
     );
