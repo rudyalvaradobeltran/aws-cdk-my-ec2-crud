@@ -64,11 +64,19 @@ jobs:
             --comment "Deploy Next.js SSR app using PM2" \
             --cloud-watch-output-config '{"CloudWatchLogGroupName": "webapp-deploy-logs", "CloudWatchOutputEnabled": true}' \
             --parameters commands="[ 
+              \"set -x\",
+              \"echo 'Starting deployment...'\",
               \"aws s3 cp s3://${{ env.BUCKET_NAME }}/webapp.zip /tmp/webapp.zip\",
+              \"echo 'Downloaded webapp.zip'\",
               \"cd /tmp && unzip -o webapp.zip -d webapp\",
+              \"echo 'Unzipped webapp'\",
               \"rm -rf /home/ec2-user/webapp && mv /tmp/webapp /home/ec2-user/webapp\",
+              \"echo 'Moved webapp to home directory'\",
               \"aws s3 cp s3://${{ env.BUCKET_NAME }}/install-webapp.sh /home/ec2-user/install-webapp.sh\",
+              \"echo 'Downloaded install script'\",
               \"chown ec2-user:ec2-user /home/ec2-user/install-webapp.sh\",
               \"chmod +x /home/ec2-user/install-webapp.sh\",
-              \"sudo -u ec2-user bash /home/ec2-user/install-webapp.sh\"
+              \"echo 'Running install script...'\",
+              \"sudo -u ec2-user bash /home/ec2-user/install-webapp.sh\",
+              \"echo 'Install script completed'\"
             ]"

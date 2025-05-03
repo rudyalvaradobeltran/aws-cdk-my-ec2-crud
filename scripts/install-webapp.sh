@@ -29,7 +29,7 @@ npm install -g pm2
 pm2 delete nextjs-app || true
 pm2 start npm --name nextjs-app -- start
 pm2 save
-pm2 startup | grep sudo | bash
+sudo pm2 startup
 
 # Install NGINX
 sudo yum install nginx -y
@@ -59,18 +59,18 @@ sudo systemctl restart nginx
 
 # Verify services are running
 if ! pm2 list | grep -q "nextjs-app"; then
-    echo "Error: PM2 process not running"
-    exit 1
+  echo "Error: PM2 process not running"
+  exit 1
 fi
 
 if ! systemctl is-active --quiet nginx; then
-    echo "Error: NGINX not running"
-    exit 1
+  echo "Error: NGINX not running"
+  exit 1
 fi
 
 # Wait for the app to be ready
 sleep 10
 if ! curl -s http://localhost:3000 > /dev/null; then
-    echo "Error: Next.js app is not responding"
-    exit 1
+  echo "Error: Next.js app is not responding"
+  exit 1
 fi

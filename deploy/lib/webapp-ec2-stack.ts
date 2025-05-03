@@ -86,7 +86,7 @@ export class WebappEc2Stack extends Stack {
 
     const instance = new Instance(this, "WebappInstance", {
       vpc,
-      instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
+      instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.SMALL),
       machineImage: machineImage,
       securityGroup,
       vpcSubnets: { subnets: [publicSubnet] },
