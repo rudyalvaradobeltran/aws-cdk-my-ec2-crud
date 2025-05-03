@@ -14,6 +14,7 @@ import {
 } from "aws-cdk-lib/aws-ec2";
 import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { StringParameter } from "aws-cdk-lib/aws-ssm";
+import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 
 interface WebappEc2StackProps extends StackProps {
   vpc: Vpc;
@@ -24,6 +25,11 @@ export class WebappEc2Stack extends Stack {
     super(scope, id, props);
 
     const { vpc } = props;
+
+    const logGroup = new LogGroup(this, 'WebappDeployLogs', {
+      logGroupName: 'webapp-deploy-logs',
+      retention: RetentionDays.ONE_MONTH,
+    });
 
     const securityGroup = new SecurityGroup(this, "PublicInstanceSG", {
       vpc,
@@ -58,6 +64,19 @@ export class WebappEc2Stack extends Stack {
           'arn:aws:s3:::temp-webapp-deployment',
           'arn:aws:s3:::temp-webapp-deployment/*',
         ],
+      })
+    );
+
+    ec2Role.addToPolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          'logs:CreateLogGroup',
+          'logs:CreateLogStream',
+          'logs:PutLogEvents',
+          'logs:DescribeLogStreams'
+        ],
+        resources: [logGroup.logGroupArn],
       })
     );
 
