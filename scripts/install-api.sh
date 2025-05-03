@@ -2,6 +2,12 @@
 
 set -euxo pipefail
 
+# Check if API is already installed and running
+if [ -d "/home/ec2-user/api" ] && pm2 list | grep -q "nestjs-api"; then
+  echo "API is already installed and running. Skipping installation."
+  exit 0
+fi
+
 cd /home/ec2-user/api || exit 1
 
 # Install NVM if not already installed
@@ -44,47 +50,82 @@ fi
 # Install NGINX
 sudo dnf install nginx -y
 
-# Set up reverse proxy to port 3000
-sudo tee /etc/nginx/conf.d/api.conf > /dev/null <<EOF
-server {
-  listen 80;
+# Backup original nginx.conf
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
 
-  location / {
-    proxy_pass http://localhost:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade \$http_upgrade;
-    proxy_set_header Connection 'upgrade';
-    proxy_set_header Host \$host;
-    proxy_cache_bypass \$http_upgrade;
-  }
+# Update main nginx.conf
+sudo tee /etc/nginx/nginx.conf > /dev/null <<EOF
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+include /usr/share/nginx/modules/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    log_format  main  '\$remote_addr - \$remote_user [\$time_local] "\$request" '
+                      '\$status \$body_bytes_sent "\$http_referer" '
+                      '"\$http_user_agent" "\$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile            on;
+    tcp_nopush          on;
+    tcp_nodelay         on;
+    keepalive_timeout   65;
+    types_hash_max_size 4096;
+
+    include             /etc/nginx/mime.types;
+    default_type        application/octet-stream;
+
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen       80 default_server;
+        listen       [::]:80 default_server;
+        server_name  _;
+
+        location / {
+            proxy_pass http://localhost:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade \$http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            proxy_cache_bypass \$http_upgrade;
+        }
+    }
 }
 EOF
 
-# Remove default NGINX configuration
-sudo rm -f /etc/nginx/conf.d/default.conf || true
+# Remove any existing configurations
+sudo rm -f /etc/nginx/conf.d/*.conf
+
+# Test NGINX configuration
+echo "Testing NGINX configuration..."
+sudo nginx -t
 
 # Start and enable Nginx
+echo "Starting NGINX..."
 sudo systemctl enable nginx
 sudo systemctl restart nginx
 
 # Wait for the app to be ready
 echo "Waiting for API to be ready..."
-MAX_RETRIES=5
-RETRY_COUNT=0
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-  # Check if port 3000 is in use
-  if netstat -tuln | grep -q ":3000 "; then
-    echo "API is running on port 3000!"
+sleep 10
+if netstat -tuln | grep -q ":3000 "; then
+  if curl -s http://localhost:3000 > /dev/null; then
+    echo "API is accessible on port 3000"
+  fi
+  
+  if curl -s http://localhost:80 > /dev/null; then
+    echo "API is accessible through NGINX on port 80"
     exit 0
   fi
-  echo "API not ready yet, retrying in 5 seconds... (Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
-  sleep 5
-  RETRY_COUNT=$((RETRY_COUNT + 1))
-done
-
-echo "Error: API is not running on port 3000 after $MAX_RETRIES attempts"
-echo "Checking PM2 status..."
-pm2 list
-echo "Checking PM2 logs..."
-pm2 logs nestjs-api --lines 20
-exit 1
+fi

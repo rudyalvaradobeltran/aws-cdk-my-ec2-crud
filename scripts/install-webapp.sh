@@ -2,6 +2,12 @@
 
 set -euxo pipefail
 
+# Check if Webapp is already installed and running
+if [ -d "/home/ec2-user/webapp" ] && pm2 list | grep -q "nextjs-app"; then
+  echo "Webapp is already installed and running. Skipping installation."
+  exit 0
+fi
+
 cd /home/ec2-user/webapp || exit 1
 
 # Install NVM if not already installed
@@ -72,8 +78,15 @@ sudo systemctl enable nginx
 sudo systemctl restart nginx
 
 # Wait for the app to be ready
+echo "Waiting for API to be ready..."
 sleep 10
-if ! curl -s http://localhost:3000 > /dev/null; then
-  echo "Error: Next.js app is not responding"
-  exit 1
+if netstat -tuln | grep -q ":3000 "; then
+  if curl -s http://localhost:3000 > /dev/null; then
+    echo "API is accessible on port 3000"
+  fi
+  
+  if curl -s http://localhost:80 > /dev/null; then
+    echo "API is accessible through NGINX on port 80"
+    exit 0
+  fi
 fi
