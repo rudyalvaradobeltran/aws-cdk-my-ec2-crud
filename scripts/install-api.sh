@@ -27,7 +27,7 @@ npm install -g pm2
 
 # Start app with PM2
 pm2 delete nestjs-api || true
-pm2 start npm --name nestjs-api -- start:prod
+pm2 start dist/main.js --name nestjs-api
 pm2 save
 
 # Temporarily disable exit on error for PM2 startup
@@ -68,8 +68,23 @@ sudo systemctl enable nginx
 sudo systemctl restart nginx
 
 # Wait for the app to be ready
-sleep 10
-if ! curl -s http://localhost:3000/health > /dev/null; then
-  echo "Error: NestJS API is not responding"
-  exit 1
-fi 
+echo "Waiting for API to be ready..."
+MAX_RETRIES=5
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  # Check if port 3000 is in use
+  if netstat -tuln | grep -q ":3000 "; then
+    echo "API is running on port 3000!"
+    exit 0
+  fi
+  echo "API not ready yet, retrying in 5 seconds... (Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+  sleep 5
+  RETRY_COUNT=$((RETRY_COUNT + 1))
+done
+
+echo "Error: API is not running on port 3000 after $MAX_RETRIES attempts"
+echo "Checking PM2 status..."
+pm2 list
+echo "Checking PM2 logs..."
+pm2 logs nestjs-api --lines 20
+exit 1
