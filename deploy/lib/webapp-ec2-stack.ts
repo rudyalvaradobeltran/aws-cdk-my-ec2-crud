@@ -60,18 +60,6 @@ export class WebappEc2Stack extends Stack {
         ],
       })
     );
-    
-    ec2Role.addToPolicy(
-      new PolicyStatement({
-        effect: Effect.ALLOW,
-        actions: [
-          "s3:PutObject"
-        ],
-        resources: [
-          "arn:aws:s3:::webapp-install-logs/*"
-        ]
-      })
-    )
 
     const machineImage = new AmazonLinuxImage({
       generation: AmazonLinuxGeneration.AMAZON_LINUX_2023,

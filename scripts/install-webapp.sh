@@ -33,7 +33,6 @@ pm2 startup | grep sudo | bash
 
 # Install NGINX
 sudo yum install nginx -y
-sudo nano /etc/nginx/conf.d/nextjs.conf
 
 # Set up reverse proxy to port 3000
 sudo tee /etc/nginx/conf.d/nextjs.conf > /dev/null <<EOF
@@ -51,9 +50,27 @@ server {
 }
 EOF
 
-# Remove default config if it exists
+# Remove default NGINX configuration
 sudo rm -f /etc/nginx/conf.d/default.conf || true
 
 # Start and enable Nginx
 sudo systemctl enable nginx
 sudo systemctl restart nginx
+
+# Verify services are running
+if ! pm2 list | grep -q "nextjs-app"; then
+    echo "Error: PM2 process not running"
+    exit 1
+fi
+
+if ! systemctl is-active --quiet nginx; then
+    echo "Error: NGINX not running"
+    exit 1
+fi
+
+# Wait for the app to be ready
+sleep 10
+if ! curl -s http://localhost:3000 > /dev/null; then
+    echo "Error: Next.js app is not responding"
+    exit 1
+fi

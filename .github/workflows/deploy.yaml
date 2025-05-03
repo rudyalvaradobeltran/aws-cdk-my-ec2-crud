@@ -41,7 +41,6 @@ jobs:
       - name: Build, zip and upload Next.js app
         run: |
           INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/webapp-ec2-instance-id" --query "Parameter.Value" --output text)
-          echo "Retrieved instance ID: $INSTANCE_ID"
 
           cd src/webapp
           npm ci
@@ -49,7 +48,7 @@ jobs:
 
           zip -r webapp.zip .next package.json package-lock.json next.config.js public
 
-          BUCKET_NAME="temp-webapp-deployment-$(echo $INSTANCE_ID | tr -d '-')"
+          BUCKET_NAME="temp-webapp-deployment"
           aws s3 mb s3://$BUCKET_NAME --region ${{ vars.AWS_DEFAULT_REGION }} || true
           aws s3 cp webapp.zip s3://$BUCKET_NAME/webapp.zip
           aws s3 cp ../../scripts/install-webapp.sh s3://$BUCKET_NAME/install-webapp.sh
@@ -59,13 +58,11 @@ jobs:
 
       - name: Deploy app on EC2 via SSM
         run: |
-          aws s3 mb s3://webapp-install-logs --region ${{ vars.AWS_DEFAULT_REGION }} || true
           aws ssm send-command \
             --instance-ids "${{ env.INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --comment "Deploy Next.js SSR app using PM2" \
-            --output-s3-bucket-name webapp-install-logs \
-            --output-s3-key-prefix logs/webapp-deploy \
+            --cloud-watch-output-config '{"CloudWatchLogGroupName": "webapp-deploy-logs", "CloudWatchOutputEnabled": true}' \
             --parameters commands="[ 
               \"aws s3 cp s3://${{ env.BUCKET_NAME }}/webapp.zip /tmp/webapp.zip\",
               \"cd /tmp && unzip -o webapp.zip -d webapp\",
