@@ -60,3 +60,10 @@ sudo rm -f /etc/nginx/conf.d/default.conf || true
 # Start and enable Nginx
 sudo systemctl enable nginx
 sudo systemctl restart nginx
+
+# Wait for the app to be ready
+sleep 10
+if ! curl -s http://localhost:3000 > /dev/null; then
+  echo "Error: Next.js app is not responding"
+  exit 1
+fi
