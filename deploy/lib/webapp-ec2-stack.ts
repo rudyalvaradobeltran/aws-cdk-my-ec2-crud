@@ -1,4 +1,4 @@
-import { Stack, StackProps } from "aws-cdk-lib";
+import { Stack, StackProps, RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import {
   Vpc,
@@ -29,6 +29,7 @@ export class WebappEc2Stack extends Stack {
     const logGroup = new LogGroup(this, 'WebappDeployLogs', {
       logGroupName: 'webapp-deploy-logs',
       retention: RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY
     });
 
     const securityGroup = new SecurityGroup(this, "PublicInstanceSG", {
