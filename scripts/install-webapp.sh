@@ -29,7 +29,7 @@ npm install -g pm2
 pm2 delete nextjs-app || true
 pm2 start npm --name nextjs-app -- start
 pm2 save
-sudo pm2 startup
+pm2 startup
 
 # Install NGINX
 sudo yum install nginx -y
