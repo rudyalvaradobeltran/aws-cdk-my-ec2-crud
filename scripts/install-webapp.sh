@@ -29,10 +29,14 @@ npm install -g pm2
 pm2 delete nextjs-app || true
 pm2 start npm --name nextjs-app -- start
 pm2 save
-pm2 startup
+pm2 startup | grep sudo | bash
+
+echo "Installing NGINX..."
 
 # Install NGINX
 sudo dnf install nginx -y
+
+echo "Setting up reverse proxy..."
 
 # Set up reverse proxy to port 3000
 sudo tee /etc/nginx/conf.d/nextjs.conf > /dev/null <<EOF
