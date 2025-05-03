@@ -29,7 +29,17 @@ npm install -g pm2
 pm2 delete nextjs-app || true
 pm2 start npm --name nextjs-app -- start
 pm2 save
+
+# Temporarily disable exit on error for PM2 startup
+set +e
+echo "Setting up PM2 startup..."
 pm2 startup | grep sudo | bash
+PM2_STARTUP_STATUS=$?
+set -e
+
+if [ $PM2_STARTUP_STATUS -ne 0 ]; then
+  echo "Warning: PM2 startup command failed, but continuing with installation..."
+fi
 
 echo "Installing NGINX..."
 
