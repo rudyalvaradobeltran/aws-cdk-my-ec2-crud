@@ -16,45 +16,45 @@ import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "
 import { StringParameter } from "aws-cdk-lib/aws-ssm";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
 
-interface WebappEc2StackProps extends StackProps {
-  vpc: Vpc;
+interface Ec2WebappStackProps extends StackProps {
+  VPC: Vpc;
 }
 
-export class WebappEc2Stack extends Stack {
-  constructor(scope: Construct, id: string, props: WebappEc2StackProps) {
+export class Ec2WebappStack extends Stack {
+  constructor(scope: Construct, id: string, props: Ec2WebappStackProps) {
     super(scope, id, props);
 
-    const { vpc } = props;
+    const { VPC } = props;
 
-    const logGroup = new LogGroup(this, 'WebappDeployLogs', {
+    const webappDeployLogs = new LogGroup(this, 'WebappDeployLogs', {
       logGroupName: 'webapp-deploy-logs',
       retention: RetentionDays.ONE_MONTH,
       removalPolicy: RemovalPolicy.DESTROY
     });
 
-    const securityGroup = new SecurityGroup(this, "PublicInstanceSG", {
-      vpc,
-      description: "Allow HTTPS access",
+    const publicInstanceSG = new SecurityGroup(this, "PublicInstanceSG", {
+      vpc: VPC,
+      description: "Allow public access",
       allowAllOutbound: true,
     });
 
-    securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(80), "Allow HTTP");
-    securityGroup.addIngressRule(Peer.anyIpv4(), Port.tcp(443), "Allow HTTPS");
-    securityGroup.addEgressRule(Peer.anyIpv4(), Port.allTraffic(), "Allow All Egress");
+    publicInstanceSG.addIngressRule(Peer.anyIpv4(), Port.tcp(80), "Allow HTTP");
+    publicInstanceSG.addIngressRule(Peer.anyIpv4(), Port.tcp(443), "Allow HTTPS");
+    publicInstanceSG.addEgressRule(Peer.anyIpv4(), Port.allTraffic(), "Allow All Egress");
 
-    const publicSubnet = vpc.selectSubnets({
+    const publicSubnet = VPC.selectSubnets({
       subnetGroupName: 'PublicSubnet',
     }).subnets[0];
 
-    const ec2Role = new Role(this, 'EC2Role', {
+    const Ec2WebappRole = new Role(this, 'Ec2WebappRole', {
       assumedBy: new ServicePrincipal('ec2.amazonaws.com'),
     });
     
-    ec2Role.addManagedPolicy(
+    Ec2WebappRole.addManagedPolicy(
       ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore')
     );
     
-    ec2Role.addToPolicy(
+    Ec2WebappRole.addToPolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
         actions: [
@@ -68,7 +68,7 @@ export class WebappEc2Stack extends Stack {
       })
     );
 
-    ec2Role.addToPolicy(
+    Ec2WebappRole.addToPolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
         actions: [
@@ -77,7 +77,7 @@ export class WebappEc2Stack extends Stack {
           'logs:PutLogEvents',
           'logs:DescribeLogStreams'
         ],
-        resources: [logGroup.logGroupArn],
+        resources: [webappDeployLogs.logGroupArn],
       })
     );
 
@@ -85,18 +85,18 @@ export class WebappEc2Stack extends Stack {
       generation: AmazonLinuxGeneration.AMAZON_LINUX_2023,
     });
 
-    const instance = new Instance(this, "WebappInstance", {
-      vpc,
-      instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.SMALL),
+    const webappInstance = new Instance(this, "WebappInstance", {
+      vpc: VPC,
+      instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
       machineImage: machineImage,
-      securityGroup,
+      securityGroup: publicInstanceSG,
       vpcSubnets: { subnets: [publicSubnet] },
-      role: ec2Role
+      role: Ec2WebappRole
     });
 
     new StringParameter(this, 'WebappInstanceId', {
-      parameterName: '/webapp/webapp-ec2-instance-id',
-      stringValue: instance.instanceId,
+      parameterName: '/webapp/ec2-webapp-instance-id',
+      stringValue: webappInstance.instanceId,
     });
   }
 }

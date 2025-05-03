@@ -38,9 +38,9 @@ jobs:
         run: |
           cd deploy && npm run cdk deploy -- --all --require-approval never
 
-      - name: Build, zip and upload Next.js app
+      - name: Build, zip and upload Next.js webapp
         run: |
-          INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/webapp-ec2-instance-id" --query "Parameter.Value" --output text)
+          INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/ec2-webapp-instance-id" --query "Parameter.Value" --output text)
 
           cd src/webapp
           npm ci
@@ -48,15 +48,15 @@ jobs:
 
           zip -r webapp.zip .next package.json package-lock.json next.config.js public
 
-          BUCKET_NAME="temp-webapp-deployment"
-          aws s3 mb s3://$BUCKET_NAME --region ${{ vars.AWS_DEFAULT_REGION }} || true
-          aws s3 cp webapp.zip s3://$BUCKET_NAME/webapp.zip
-          aws s3 cp ../../scripts/install-webapp.sh s3://$BUCKET_NAME/install-webapp.sh
+          WEBAPP_BUCKET_NAME="temp-webapp-deployment"
+          aws s3 mb s3://$WEBAPP_BUCKET_NAME --region ${{ vars.AWS_DEFAULT_REGION }} || true
+          aws s3 cp webapp.zip s3://$WEBAPP_BUCKET_NAME/webapp.zip
+          aws s3 cp ../../scripts/install-webapp.sh s3://$WEBAPP_BUCKET_NAME/install-webapp.sh
 
           echo "INSTANCE_ID=$INSTANCE_ID" >> $GITHUB_ENV
-          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+          echo "WEBAPP_BUCKET_NAME=$WEBAPP_BUCKET_NAME" >> $GITHUB_ENV
 
-      - name: Deploy app on EC2 via SSM
+      - name: Deploy webapp on EC2 via SSM
         run: |
           aws ssm send-command \
             --instance-ids "${{ env.INSTANCE_ID }}" \
@@ -65,18 +65,47 @@ jobs:
             --cloud-watch-output-config '{"CloudWatchLogGroupName": "webapp-deploy-logs", "CloudWatchOutputEnabled": true}' \
             --parameters commands="[ 
               \"set -x\",
-              \"echo 'Starting deployment...'\",
-              \"aws s3 cp s3://${{ env.BUCKET_NAME }}/webapp.zip /tmp/webapp.zip\",
-              \"echo 'Downloaded webapp.zip'\",
+              \"aws s3 cp s3://${{ env.WEBAPP_BUCKET_NAME }}/webapp.zip /tmp/webapp.zip\",
               \"cd /tmp && unzip -o webapp.zip -d webapp\",
-              \"echo 'Unzipped webapp'\",
               \"rm -rf /home/ec2-user/webapp && mv /tmp/webapp /home/ec2-user/webapp\",
-              \"echo 'Moved webapp to home directory'\",
-              \"aws s3 cp s3://${{ env.BUCKET_NAME }}/install-webapp.sh /home/ec2-user/install-webapp.sh\",
-              \"echo 'Downloaded install script'\",
+              \"aws s3 cp s3://${{ env.WEBAPP_BUCKET_NAME }}/install-webapp.sh /home/ec2-user/install-webapp.sh\",
               \"chown ec2-user:ec2-user /home/ec2-user/install-webapp.sh\",
               \"chmod +x /home/ec2-user/install-webapp.sh\",
-              \"echo 'Running install script...'\",
-              \"sudo -u ec2-user bash /home/ec2-user/install-webapp.sh\",
-              \"echo 'Install script completed'\"
+              \"sudo -u ec2-user bash /home/ec2-user/install-webapp.sh\"
+            ]"
+
+      - name: Build, zip and upload Nest.js API
+        run: |
+          API_INSTANCE_ID=$(aws ssm get-parameter --name "/api/ec2-api-instance-id" --query "Parameter.Value" --output text)
+
+          cd src/api
+          npm ci
+          npm run build
+
+          zip -r api.zip dist package.json package-lock.json
+
+          API_BUCKET_NAME="temp-api-deployment"
+          aws s3 mb s3://$API_BUCKET_NAME --region ${{ vars.AWS_DEFAULT_REGION }} || true
+          aws s3 cp api.zip s3://$API_BUCKET_NAME/api.zip
+          aws s3 cp ../../scripts/install-api.sh s3://$API_BUCKET_NAME/install-api.sh
+
+          echo "API_INSTANCE_ID=$API_INSTANCE_ID" >> $GITHUB_ENV
+          echo "API_BUCKET_NAME=$API_BUCKET_NAME" >> $GITHUB_ENV
+
+      - name: Deploy API on EC2 via SSM
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ env.API_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy NestJS API using PM2" \
+            --cloud-watch-output-config '{"CloudWatchLogGroupName": "api-deploy-logs", "CloudWatchOutputEnabled": true}' \
+            --parameters commands="[ 
+              \"set -x\",
+              \"aws s3 cp s3://${{ env.API_BUCKET_NAME }}/api.zip /tmp/api.zip\",
+              \"cd /tmp && unzip -o api.zip -d api\",
+              \"rm -rf /home/ec2-user/api && mv /tmp/api /home/ec2-user/api\",
+              \"aws s3 cp s3://${{ env.API_BUCKET_NAME }}/install-api.sh /home/ec2-user/install-api.sh\",
+              \"chown ec2-user:ec2-user /home/ec2-user/install-api.sh\",
+              \"chmod +x /home/ec2-user/install-api.sh\",
+              \"sudo -u ec2-user bash /home/ec2-user/install-api.sh\"
             ]"

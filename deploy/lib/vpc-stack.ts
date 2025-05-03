@@ -12,13 +12,13 @@ import {
 import { Construct } from "constructs";
 
 export class VpcStack extends Stack {
-  public readonly vpc: Vpc;
+  public readonly VPC: Vpc;
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const vpc = new Vpc(this, "VPCPrimary", {
-      vpcName: "VPCPrimary",
+    const VPC = new Vpc(this, "VPC", {
+      vpcName: "VPC",
       ipAddresses: IpAddresses.cidr("10.0.0.0/16"),
       maxAzs: 2,
       natGateways: 1,
@@ -36,12 +36,12 @@ export class VpcStack extends Stack {
       ],
     });
 
-    const nacl = new NetworkAcl(this, 'PublicNACL', {
-      vpc,
+    const NACL = new NetworkAcl(this, 'NACL', {
+      vpc: VPC,
       subnetSelection: { subnetType: SubnetType.PUBLIC },
     });
 
-    nacl.addEntry('AllowHTTP', {
+    NACL.addEntry('AllowHTTP', {
       ruleNumber: 100,
       cidr: AclCidr.anyIpv4(),
       traffic: AclTraffic.tcpPort(80),
@@ -49,7 +49,7 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
 
-    nacl.addEntry('AllowHTTPS', {
+    NACL.addEntry('AllowHTTPS', {
       ruleNumber: 110,
       cidr: AclCidr.anyIpv4(),
       traffic: AclTraffic.tcpPort(443),
@@ -57,7 +57,7 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
 
-    nacl.addEntry('AllowEphemeralInbound', {
+    NACL.addEntry('AllowEphemeralInbound', {
       ruleNumber: 150,
       cidr: AclCidr.anyIpv4(),
       traffic: AclTraffic.tcpPortRange(1024, 65535),
@@ -65,7 +65,7 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
 
-    nacl.addEntry('AllowOutboundHTTP', {
+    NACL.addEntry('AllowOutboundHTTP', {
       ruleNumber: 100,
       cidr: AclCidr.anyIpv4(),
       traffic: AclTraffic.tcpPort(80),
@@ -73,7 +73,7 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
 
-    nacl.addEntry('AllowOutboundHTTPS', {
+    NACL.addEntry('AllowOutboundHTTPS', {
       ruleNumber: 110,
       cidr: AclCidr.anyIpv4(),
       traffic: AclTraffic.tcpPort(443),
@@ -81,7 +81,7 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
     
-    nacl.addEntry('AllowOutboundEphemeral', {
+    NACL.addEntry('AllowOutboundEphemeral', {
       ruleNumber: 150,
       cidr: AclCidr.anyIpv4(),
       traffic: AclTraffic.tcpPortRange(1024, 65535),
@@ -89,6 +89,6 @@ export class VpcStack extends Stack {
       ruleAction: Action.ALLOW,
     });
 
-    this.vpc = vpc;
+    this.VPC = VPC;
   }
 }
