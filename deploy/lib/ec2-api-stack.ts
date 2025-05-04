@@ -1,4 +1,4 @@
-import { Stack, StackProps, RemovalPolicy, Duration, CfnOutput } from "aws-cdk-lib";
+import { Stack, StackProps, RemovalPolicy, CfnOutput } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import {
   Vpc,
@@ -24,7 +24,7 @@ import {
   ListenerAction,
   IpAddressType
 } from "aws-cdk-lib/aws-elasticloadbalancingv2";
-import { InstanceTarget } from "aws-cdk-lib/aws-elasticloadbalancingv2-targets/lib";
+import { InstanceTarget } from "aws-cdk-lib/aws-elasticloadbalancingv2-targets";
 
 interface Ec2ApiStackProps extends StackProps {
   VPC: Vpc;
