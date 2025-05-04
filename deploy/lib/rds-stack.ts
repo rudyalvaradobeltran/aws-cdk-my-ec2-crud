@@ -10,7 +10,6 @@ import {
   ISecurityGroup
 } from "aws-cdk-lib/aws-ec2";
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from "aws-cdk-lib/aws-rds";
-import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import { SecretValue } from "aws-cdk-lib";
 
 interface RdsStackProps extends StackProps {
@@ -43,8 +42,8 @@ export class RdsStack extends Stack {
         version: PostgresEngineVersion.VER_15
       }),
       instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
-      allocatedStorage: 1,
-      maxAllocatedStorage: 2,
+      allocatedStorage: 20,
+      maxAllocatedStorage: 100,
       securityGroups: [securityGroup],
       credentials: {
         username: 'postgres',
