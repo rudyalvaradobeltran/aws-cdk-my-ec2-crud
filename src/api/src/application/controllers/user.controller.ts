@@ -6,6 +6,6 @@ export class UserController {
 
   @Get('/user')
   async get(@Res() res: Response) {
-    res.status(HttpStatus.OK).json({ message: "Hello" });
+    res.status(HttpStatus.OK).json({ message: "This is the user data" });
   }
 }
