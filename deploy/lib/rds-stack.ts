@@ -7,7 +7,6 @@ import {
   InstanceType,
   InstanceClass,
   InstanceSize,
-  SubnetType,
   ISecurityGroup
 } from "aws-cdk-lib/aws-ec2";
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from "aws-cdk-lib/aws-rds";
@@ -30,15 +29,15 @@ export class RdsStack extends Stack {
       Port.tcp(5432),
       "Allow PostgreSQL access from API instance"
     );
-    
-    const privateSubnet = VPC.selectSubnets({
+
+    const privateSubnets = VPC.selectSubnets({
       subnetGroupName: 'PrivateSubnet',
-    }).subnets[0];
+    }).subnets;
 
     const database = new DatabaseInstance(this, "Database", {
       vpc: VPC,
       vpcSubnets: {
-        subnets: [privateSubnet]
+        subnets: privateSubnets
       },
       engine: DatabaseInstanceEngine.postgres({
         version: PostgresEngineVersion.VER_15
