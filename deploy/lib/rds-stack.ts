@@ -12,6 +12,7 @@ import {
 } from "aws-cdk-lib/aws-ec2";
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from "aws-cdk-lib/aws-rds";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
+import { SecretValue } from "aws-cdk-lib";
 
 interface RdsStackProps extends StackProps {
   VPC: Vpc;
@@ -29,16 +30,7 @@ export class RdsStack extends Stack {
       Port.tcp(5432),
       "Allow PostgreSQL access from API instance"
     );
-
-    const dbCredentials = new Secret(this, "DBCredentials", {
-      generateSecretString: {
-        secretStringTemplate: JSON.stringify({ username: "postgres" }),
-        generateStringKey: "password",
-        excludePunctuation: true,
-        passwordLength: 16
-      }
-    });
-
+    
     const privateSubnet = VPC.selectSubnets({
       subnetGroupName: 'PrivateSubnet',
     }).subnets[0];
@@ -56,8 +48,8 @@ export class RdsStack extends Stack {
       maxAllocatedStorage: 2,
       securityGroups: [securityGroup],
       credentials: {
-        username: dbCredentials.secretValueFromJson("username").toString(),
-        password: dbCredentials.secretValueFromJson("password")
+        username: 'postgres',
+        password: SecretValue.unsafePlainText('postgres')
       },
       backupRetention: Duration.days(7),
       preferredBackupWindow: "03:00-04:00",
@@ -70,11 +62,6 @@ export class RdsStack extends Stack {
     new CfnOutput(this, "DatabaseEndpoint", {
       value: database.instanceEndpoint.hostname,
       description: "Database endpoint"
-    });
-
-    new CfnOutput(this, "DatabaseCredentialsArn", {
-      value: dbCredentials.secretArn,
-      description: "Database credentials ARN"
     });
   }
 }
