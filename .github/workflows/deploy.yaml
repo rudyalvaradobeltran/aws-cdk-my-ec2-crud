@@ -46,12 +46,22 @@ jobs:
 
       - name: Initialize Database
         run: |
-          # Install PostgreSQL client
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          # Get the API instance ID
+          API_INSTANCE_ID=$(aws ssm get-parameter --name "/api/ec2-api-instance-id" --query "Parameter.Value" --output text)
 
-          # Run the initialization script
-          PGPASSWORD=postgres psql -h ${{ env.DB_ENDPOINT }} -U postgres -d myapp -f scripts/init-db.sql
+          # Upload the SQL file to the API instance
+          aws s3 cp scripts/init-db.sql s3://temp-api-deployment/init-db.sql
+          
+          # Run the initialization on the API instance
+          aws ssm send-command \
+            --instance-ids "$API_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Initialize database" \
+            --parameters commands="[
+              \"aws s3 cp s3://temp-api-deployment/init-db.sql /home/ec2-user/init-db.sql\",
+              \"sudo dnf install -y postgresql15\",
+              \"PGPASSWORD=postgres psql -h ${{ env.DB_ENDPOINT }} -U postgres -d myapp -f /home/ec2-user/init-db.sql\"
+            ]"
 
       - name: Build, zip and upload Next.js webapp
         run: |

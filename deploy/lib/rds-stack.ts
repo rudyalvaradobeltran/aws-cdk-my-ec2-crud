@@ -11,9 +11,6 @@ import {
 } from "aws-cdk-lib/aws-ec2";
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from "aws-cdk-lib/aws-rds";
 import { SecretValue } from "aws-cdk-lib";
-import { StringParameter } from "aws-cdk-lib/aws-ssm";
-import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
-import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 
 interface RdsStackProps extends StackProps {
   VPC: Vpc;
