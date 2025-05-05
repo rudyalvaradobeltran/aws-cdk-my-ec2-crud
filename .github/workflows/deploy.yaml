@@ -38,6 +38,28 @@ jobs:
         run: |
           cd deploy && npm run cdk deploy -- --all --require-approval never
 
+      - name: Get RDS Endpoint
+        id: rds
+        run: |
+          DB_ENDPOINT=$(aws cloudformation describe-stacks --stack-name RdsStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseEndpoint`].OutputValue' --output text)
+          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_ENV
+
+      - name: Initialize Database
+        run: |
+          DB_INSTANCE_ID=$(aws ssm get-parameter --name "/db/db-instance-id" --query "Parameter.Value" --output text)
+
+          aws s3 cp scripts/init-db.sh s3://temp-db-deployment/init-db.sh
+          
+          aws ssm send-command \
+            --instance-ids "$DB_INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Initialize database" \
+            --parameters commands="[
+              \"aws s3 cp s3://temp-db-deployment/init-db.sh /home/ec2-user/init-db.sh\",
+              \"chmod +x /home/ec2-user/init-db.sh\",
+              \"sudo -u ec2-user /home/ec2-user/init-db.sh ${{ env.DB_ENDPOINT }}\"
+            ]"
+
       - name: Build, zip and upload Next.js webapp
         run: |
           INSTANCE_ID=$(aws ssm get-parameter --name "/webapp/ec2-webapp-instance-id" --query "Parameter.Value" --output text)

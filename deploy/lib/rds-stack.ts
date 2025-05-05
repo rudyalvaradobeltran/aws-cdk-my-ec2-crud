@@ -11,6 +11,9 @@ import {
 } from "aws-cdk-lib/aws-ec2";
 import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from "aws-cdk-lib/aws-rds";
 import { SecretValue } from "aws-cdk-lib";
+import { StringParameter } from "aws-cdk-lib/aws-ssm";
+import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
+import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 
 interface RdsStackProps extends StackProps {
   VPC: Vpc;
@@ -33,7 +36,7 @@ export class RdsStack extends Stack {
       subnetGroupName: 'PrivateSubnet',
     }).subnets;
 
-    const database = new DatabaseInstance(this, "Database", {
+    const databaseInstance = new DatabaseInstance(this, "Database", {
       vpc: VPC,
       vpcSubnets: {
         subnets: privateSubnets
@@ -58,7 +61,7 @@ export class RdsStack extends Stack {
     });
 
     new CfnOutput(this, "DatabaseEndpoint", {
-      value: database.instanceEndpoint.hostname,
+      value: databaseInstance.instanceEndpoint.hostname,
       description: "Database endpoint"
     });
   }
