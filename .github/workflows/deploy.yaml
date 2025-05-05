@@ -46,19 +46,12 @@ jobs:
 
       - name: Initialize Database
         run: |
-          DB_INSTANCE_ID=$(aws ssm get-parameter --name "/db/db-instance-id" --query "Parameter.Value" --output text)
+          # Install PostgreSQL client
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
-          aws s3 cp scripts/init-db.sh s3://temp-db-deployment/init-db.sh
-          
-          aws ssm send-command \
-            --instance-ids "$DB_INSTANCE_ID" \
-            --document-name "AWS-RunShellScript" \
-            --comment "Initialize database" \
-            --parameters commands="[
-              \"aws s3 cp s3://temp-db-deployment/init-db.sh /home/ec2-user/init-db.sh\",
-              \"chmod +x /home/ec2-user/init-db.sh\",
-              \"sudo -u ec2-user /home/ec2-user/init-db.sh ${{ env.DB_ENDPOINT }}\"
-            ]"
+          # Run the initialization script
+          PGPASSWORD=postgres psql -h ${{ env.DB_ENDPOINT }} -U postgres -d myapp -f scripts/init-db.sql
 
       - name: Build, zip and upload Next.js webapp
         run: |

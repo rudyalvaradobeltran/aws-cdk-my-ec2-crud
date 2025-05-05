@@ -29,7 +29,7 @@ export class RdsStack extends Stack {
     securityGroup.addIngressRule(
       Peer.anyIpv4(),
       Port.tcp(5432),
-      "Allow PostgreSQL access from API instance"
+      "Allow PostgreSQL access from API instance and GitHub Actions"
     );
 
     const privateSubnets = VPC.selectSubnets({
