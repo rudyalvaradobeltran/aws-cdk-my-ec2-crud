@@ -7,54 +7,69 @@ import {
   InstanceType,
   InstanceClass,
   InstanceSize,
-  ISecurityGroup
+  ISecurityGroup,
+  SecurityGroup,
+  SubnetType
 } from "aws-cdk-lib/aws-ec2";
-import { DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from "aws-cdk-lib/aws-rds";
+import { Credentials, DatabaseInstance, DatabaseInstanceEngine, PostgresEngineVersion } from "aws-cdk-lib/aws-rds";
 import { SecretValue } from "aws-cdk-lib";
+import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 
 interface RdsStackProps extends StackProps {
   VPC: Vpc;
-  securityGroup: ISecurityGroup;
 }
 
 export class RdsStack extends Stack {
   constructor(scope: Construct, id: string, props: RdsStackProps) {
     super(scope, id, props);
 
-    const { VPC, securityGroup } = props;
+    const { VPC } = props;
 
-    securityGroup.addIngressRule(
-      Peer.anyIpv4(),
+    // Security Group for Database
+    const dbSecurityGroup = new SecurityGroup(this, 'RDSSecurityGroup', {
+      vpc: VPC,
+      description: 'Security group for RDS PostgreSQL instance',
+      allowAllOutbound: false,
+    });
+
+    // Remove this for production or use a bastion host
+    dbSecurityGroup.addIngressRule(
+      Peer.ipv4(`${process.env.MY_IP_ADDRESS}/32`),
       Port.tcp(5432),
-      "Allow PostgreSQL access from API instance and GitHub Actions"
+      'Allow PostgreSQL access from development machine'
     );
 
     const privateSubnets = VPC.selectSubnets({
       subnetGroupName: 'PrivateSubnet',
     }).subnets;
 
+    // Create database credentials secret
+    const dbCredentials = new Secret(this, 'RDSDBCredentials', {
+      description: 'Credentials for PostgreSQL database',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: 'postgres' }),
+        generateStringKey: 'password',
+        excludeCharacters: '"@/\\\'',
+        passwordLength: 16,
+      },
+    });
+
     const databaseInstance = new DatabaseInstance(this, "Database", {
       vpc: VPC,
       vpcSubnets: {
-        subnets: privateSubnets
+        subnetType: SubnetType.PRIVATE_ISOLATED
       },
       engine: DatabaseInstanceEngine.postgres({
         version: PostgresEngineVersion.VER_15
       }),
       instanceType: InstanceType.of(InstanceClass.T3, InstanceSize.MICRO),
       allocatedStorage: 20,
-      maxAllocatedStorage: 100,
-      securityGroups: [securityGroup],
-      credentials: {
-        username: 'postgres',
-        password: SecretValue.unsafePlainText('postgres')
-      },
-      backupRetention: Duration.days(7),
-      preferredBackupWindow: "03:00-04:00",
-      preferredMaintenanceWindow: "Mon:04:00-Mon:05:00",
+      securityGroups: [dbSecurityGroup],
+      credentials: Credentials.fromSecret(dbCredentials),
       removalPolicy: RemovalPolicy.DESTROY,
       deletionProtection: false,
-      databaseName: "myapp"
+      databaseName: "myapp",
+      port: 5432
     });
 
     new CfnOutput(this, "DatabaseEndpoint", {

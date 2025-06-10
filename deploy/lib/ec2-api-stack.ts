@@ -31,7 +31,6 @@ interface Ec2ApiStackProps extends StackProps {
 }
 
 export class Ec2ApiStack extends Stack {
-  public readonly securityGroup: SecurityGroup;
 
   constructor(scope: Construct, id: string, props: Ec2ApiStackProps) {
     super(scope, id, props);
@@ -153,7 +152,5 @@ export class Ec2ApiStack extends Stack {
       description: 'The DNS name of the ALB',
       value: alb.loadBalancerDnsName
     });
-
-    this.securityGroup = privateInstanceSG;
   }
 }

@@ -25,13 +25,18 @@ export class VpcStack extends Stack {
       subnetConfiguration: [
         {
           cidrMask: 24,
-          name: "PublicSubnet",
+          name: 'public',
           subnetType: SubnetType.PUBLIC,
         },
         {
           cidrMask: 24,
-          name: "PrivateSubnet",
+          name: 'private',
           subnetType: SubnetType.PRIVATE_WITH_EGRESS,
+        },
+        {
+          cidrMask: 24,
+          name: 'database',
+          subnetType: SubnetType.PRIVATE_ISOLATED,
         },
       ],
     });

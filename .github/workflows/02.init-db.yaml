@@ -1,0 +1,105 @@
+name: INITIALIZE DATABASE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  init-db:
+    name: init-db
+    environment:
+      name: main
+    runs-on: ubuntu-latest
+    env:
+      CDK_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+      CDK_DEFAULT_ACCOUNT: ${{ vars.CDK_DEFAULT_ACCOUNT }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_DEFAULT_REGION }}
+
+      - name: Get RDS Information
+        id: rds
+        run: |
+          # Get Database Endpoint
+          DB_ENDPOINT=$(aws cloudformation describe-stacks --stack-name RdsStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseEndpoint`].OutputValue' --output text)
+          echo "DB_ENDPOINT=$DB_ENDPOINT" >> $GITHUB_ENV
+
+          # Get Database Port
+          DB_PORT=$(aws cloudformation describe-stacks --stack-name RdsStack --query 'Stacks[0].Outputs[?OutputKey==`DatabasePort`].OutputValue' --output text)
+          echo "DB_PORT=$DB_PORT" >> $GITHUB_ENV
+
+          # Get Secret Name
+          SECRET_NAME=$(aws cloudformation describe-stacks --stack-name RdsStack --query 'Stacks[0].Outputs[?OutputKey==`SecretName`].OutputValue' --output text)
+          echo "SECRET_NAME=$SECRET_NAME" >> $GITHUB_ENV
+
+          # Get Database Name
+          DB_NAME=$(aws cloudformation describe-stacks --stack-name RdsStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseName`].OutputValue' --output text)
+          echo "DB_NAME=$DB_NAME" >> $GITHUB_ENV
+
+          echo "db-endpoint=$DB_ENDPOINT" >> $GITHUB_OUTPUT
+          echo "db-port=$DB_PORT" >> $GITHUB_OUTPUT
+          echo "secret-name=$SECRET_NAME" >> $GITHUB_OUTPUT
+          echo "db-name=$DB_NAME" >> $GITHUB_OUTPUT
+          
+          echo "Database Endpoint: $DB_ENDPOINT"
+          echo "Database Port: $DB_PORT"
+          echo "Secret Name: $SECRET_NAME"
+          echo "Database Name: $DB_NAME"
+
+      - name: Get database credentials
+        id: get-credentials
+        run: |
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id ${{ steps.extract-outputs.outputs.secret-name }} \
+            --query SecretString --output text)
+          
+          DB_USERNAME=$(echo $SECRET_JSON | jq -r '.username')
+          DB_PASSWORD=$(echo $SECRET_JSON | jq -r '.password')
+          
+          echo "::add-mask::$DB_PASSWORD"
+          echo "db-username=$DB_USERNAME" >> $GITHUB_OUTPUT
+          echo "db-password=$DB_PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Test database connection
+        run: |
+          echo "Testing database connection..."
+          PGPASSWORD=${{ steps.get-credentials.outputs.db-password }} psql \
+            -h ${{ steps.extract-outputs.outputs.db-endpoint }} \
+            -p ${{ steps.extract-outputs.outputs.db-port }} \
+            -U ${{ steps.get-credentials.outputs.db-username }} \
+            -d ${{ steps.extract-outputs.outputs.db-name }} \
+            -c "SELECT version();" \
+            --no-password
+
+      - name: Run initialization script
+        run: |
+          echo "Running database initialization script..."
+          PGPASSWORD=${{ steps.get-credentials.outputs.db-password }} psql \
+            -h ${{ steps.extract-outputs.outputs.db-endpoint }} \
+            -p ${{ steps.extract-outputs.outputs.db-port }} \
+            -U ${{ steps.get-credentials.outputs.db-username }} \
+            -d ${{ steps.extract-outputs.outputs.db-name }} \
+            -f scripts/init-db.sql \
+            --no-password
+      
+      - name: Verify script execution
+        run: |
+          echo "Verifying that the initialization script ran successfully..."
+          PGPASSWORD=${{ steps.get-credentials.outputs.db-password }} psql \
+            -h ${{ steps.extract-outputs.outputs.db-endpoint }} \
+            -p ${{ steps.extract-outputs.outputs.db-port }} \
+            -U ${{ steps.get-credentials.outputs.db-username }} \
+            -d ${{ steps.extract-outputs.outputs.db-name }} \
+            -c "SELECT COUNT(*) as user_count FROM myapp.users;" \
+            --no-password
