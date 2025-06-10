@@ -39,10 +39,6 @@ export class RdsStack extends Stack {
       'Allow PostgreSQL access from development machine'
     );
 
-    const privateSubnets = VPC.selectSubnets({
-      subnetGroupName: 'PrivateSubnet',
-    }).subnets;
-
     // Create database credentials secret
     const dbCredentials = new Secret(this, 'RDSDBCredentials', {
       description: 'Credentials for PostgreSQL database',
